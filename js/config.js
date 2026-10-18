@@ -41,7 +41,7 @@ window.AS_VILAS_CONFIG = {
     data: { valor: '2026-11-28', exemplo: true },           // AAAA-MM-DD
     horario: { inicio: '15:00', fim: '19:00', exemplo: true },
     local: {
-      nome: 'Buffet da Vila Alegria',
+      nome: 'Vila da Alegria Buffet',
       endereco: 'Rua Castelo de Sintra, 1064 - Bairro Castelo, Belo Horizonte - MG, 30840-460',
       exemplo: false
     },
