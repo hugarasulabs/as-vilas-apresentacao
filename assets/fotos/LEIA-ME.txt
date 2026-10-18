@@ -1,0 +1,3 @@
+Coloque aqui a foto da aniversariante (ex.: anne.jpg), enviada e autorizada pela família.
+Depois, em js/config.js, preencha:  foto: 'assets/fotos/anne.jpg'
+Sugestão: imagem quadrada, rosto centralizado, ao menos 600x600 px, até 300 KB.
