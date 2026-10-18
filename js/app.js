@@ -23,9 +23,11 @@
     respostas: [],
     regras: { ...REGRAS_PADRAO },
     filtro: 'todos',
+    secao: 'lista',
     seq: 0,
     exemplosCarregados: false,
-    exemploForm: 0
+    exemploForm: 0,
+    ultimaId: null // última resposta enviada pelo visitante (destacada no painel)
   };
 
   /* ---------- Utilitários ---------- */
@@ -50,7 +52,7 @@
     void t.offsetWidth;
     t.style.animation = '';
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, 4200);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 3400);
   }
 
   function anunciar(msg) {
@@ -81,9 +83,17 @@
     const [h, m] = hhmm.split(':');
     return `${Number(h)}h${m && m !== '00' ? m : ''}`;
   }
-  function horarioTexto(h) {
-    if (!h || !h.inicio) return 'Horário a definir';
-    return h.fim ? `Das ${horaTexto(h.inicio)} às ${horaTexto(h.fim)}` : `A partir das ${horaTexto(h.inicio)}`;
+  // Partes do "ingresso": número grande + complemento.
+  function partesData() {
+    const d = dataFesta();
+    if (!d) return { grande: 'A definir', sub: '' };
+    const mes = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    const semana = d.toLocaleDateString('pt-BR', { weekday: 'long' });
+    return { grande: `${d.getDate()} ${mes}`, sub: `${semana.charAt(0).toUpperCase() + semana.slice(1)} · ${d.getFullYear()}` };
+  }
+  function partesHorario(h) {
+    if (!h || !h.inicio) return { grande: 'A definir', sub: '' };
+    return { grande: horaTexto(h.inicio), sub: h.fim ? `até ${horaTexto(h.fim)}` : 'início' };
   }
 
   /* =========================================================
@@ -100,12 +110,16 @@
     });
 
     const local = FESTA.local || {};
-    $('#cv-data').textContent = dataLonga();
-    $('#cv-horario').textContent = horarioTexto(FESTA.horario);
+    const pd = partesData();
+    const ph = partesHorario(FESTA.horario);
+    $('#cv-dia').textContent = pd.grande;
+    $('#cv-data').textContent = pd.sub;
+    $('#cv-hora').textContent = ph.grande;
+    $('#cv-horario').textContent = ph.sub;
+    $('.ingresso').setAttribute('aria-label', `Data e horário: ${dataLonga()}, ${ph.grande} ${ph.sub}`);
     $('#cv-local-nome').textContent = local.nome || 'Local a definir';
     $('#cv-endereco').textContent = local.endereco || '';
-    $('#ex-data').hidden = !(FESTA.data && FESTA.data.exemplo);
-    $('#ex-horario').hidden = !(FESTA.horario && FESTA.horario.exemplo);
+    $('#ex-quando').hidden = !((FESTA.data && FESTA.data.exemplo) || (FESTA.horario && FESTA.horario.exemplo));
     $('#ex-local').hidden = !local.exemplo;
     $('#rsvp-data').textContent = dataLonga();
     $('#convite-sub').textContent = FESTA.idadeCompleta
@@ -187,7 +201,9 @@
     const t = telas[estado.atual];
     $('#nav-contador').textContent = `${estado.atual + 1} de ${telas.length}`;
     $('#nav-titulo').textContent = t.dataset.titulo;
-    $('#nav-barra-fill').style.width = `${((estado.atual + 1) / telas.length) * 100}%`;
+    const progresso = `${((estado.atual + 1) / telas.length) * 100}%`;
+    $('#nav-barra-fill').style.width = progresso;
+    $('.navegacao').style.setProperty('--progresso', progresso);
 
     const ant = $('#btn-anterior');
     const prox = $('#btn-proximo');
@@ -227,6 +243,14 @@
     if (mudou) {
       window.scrollTo(0, 0);
       anunciar(`Tela ${idx + 1} de ${telas.length}: ${tela.dataset.titulo}`);
+      if (tela.dataset.tela === 'convite') {
+        $('#aparelho-convite').scrollTop = 0;
+        $('#aparelho').classList.remove('rolou', 'no-fim');
+        ajustarAparelho();
+        acenarConfirmar();
+      }
+      // Ao chegar no painel, os indicadores que mudaram desde a última visita pulsam.
+      if (tela.dataset.tela === 'painel') renderPainel();
     }
 
     // Se o foco ficou num botão desativado ou numa tela escondida, leva-o ao título.
@@ -234,6 +258,71 @@
     const focoPerdido = ativo && ativo !== document.body &&
       (ativo.disabled || telas.some((t) => t.hidden && t.contains(ativo)));
     if (focar || focoPerdido) $('h1, h2', tela).focus({ preventScroll: true });
+  }
+
+  /* ---------- Mockup de celular (somente telas largas) ----------
+     Prioridade: legibilidade. O convite nunca é reduzido abaixo de ~85%.
+     Em telas baixas (notebooks), o celular fica mais estreito (360px) e
+     assume a proporção de um aparelho compacto (até 1,8:1, como um
+     iPhone SE) em vez de encolher; o restante do convite rola por dentro. */
+  const APARELHO = { largura: 384, larguraCompacta: 360, alturaMax: 784, razaoMin: 1.8, zoomMin: 0.86 };
+  const telaLarga = window.matchMedia('(min-width: 761px)');
+
+  function ajustarAparelho() {
+    const ap = $('#aparelho');
+    if (!telaLarga.matches) {
+      ['zoom', 'width', 'height'].forEach((p) => ap.style.removeProperty(p));
+      return;
+    }
+    const suportaZoom = !!(window.CSS && CSS.supports('zoom', '0.8'));
+    const barras = $('.topo').offsetHeight + $('.navegacao').offsetHeight;
+    const respiro = parseFloat(getComputedStyle($('main')).paddingTop) + 10; // espaço acima + folga abaixo
+    const disponivel = window.innerHeight - barras - respiro;
+    const largura = disponivel < 700 ? APARELHO.larguraCompacta : APARELHO.largura;
+    let zoom = suportaZoom ? Math.min(1, Math.max(APARELHO.zoomMin, disponivel / APARELHO.alturaMax)) : 1;
+    let altura = Math.min(APARELHO.alturaMax, disponivel / zoom);
+    if (altura < largura * APARELHO.razaoMin) {
+      altura = largura * APARELHO.razaoMin;
+      if (suportaZoom) zoom = Math.max(0.72, disponivel / altura);
+    }
+    ap.style.width = `${largura}px`;
+    ap.style.height = `${Math.round(altura)}px`;
+    ap.style.zoom = zoom.toFixed(3);
+  }
+
+  function ligarAparelho() {
+    const tela = $('#aparelho-convite');
+    const ap = $('#aparelho');
+    const atualizarFim = () => {
+      ap.classList.toggle('no-fim', tela.scrollTop + tela.clientHeight >= tela.scrollHeight - 8);
+      ap.classList.toggle('rolou', tela.scrollTop > 40);
+    };
+    tela.addEventListener('scroll', atualizarFim, { passive: true });
+    let espera;
+    window.addEventListener('resize', () => {
+      clearTimeout(espera);
+      espera = setTimeout(() => { ajustarAparelho(); atualizarFim(); }, 120);
+    });
+    ajustarAparelho();
+  }
+
+  /* ---------- Incentivo à interação na tela do convite ---------- */
+  let acenoTimer;
+  function acenarConfirmar() {
+    const btn = $('.convite [data-ir="confirmacao"]');
+    clearTimeout(acenoTimer);
+    btn.classList.remove('aceno');
+    acenoTimer = setTimeout(() => {
+      btn.classList.add('aceno');
+      acenoTimer = setTimeout(() => btn.classList.remove('aceno'), 2600);
+    }, 1400);
+  }
+
+  function ligarExperimente() {
+    const exp = $('#experimente');
+    const btn = $('.convite [data-ir="confirmacao"]');
+    exp.addEventListener('mouseenter', () => btn.classList.add('chamando'));
+    exp.addEventListener('mouseleave', () => btn.classList.remove('chamando'));
   }
 
   const proximo = () => irPara(estado.atual + 1);
@@ -308,11 +397,15 @@
 
   function reiniciarTudo() {
     estado.respostas = [];
+    estado.ultimaId = null;
     estado.exemplosCarregados = false;
     estado.regras = { ...REGRAS_PADRAO };
     estado.filtro = 'todos';
+    estado.secao = 'lista';
     estado.exemploForm = 0;
     estado.visitadas.clear();
+    aplicarSecao();
+    expandirKpis(false);
     valoresKpi.clear();
     $('#regra-isencao').value = estado.regras.isencao;
     $('#regra-lembrancinha').value = estado.regras.lembrancinha;
@@ -337,11 +430,10 @@
     li.className = 'convidado';
     li.innerHTML = `
       <div class="convidado-topo">
-        <span class="convidado-num"></span>
+        <label class="convidado-rotulo" for="${id}-nome"><span class="convidado-num"></span> Nome completo <span class="obrig" aria-hidden="true">*</span></label>
         <button type="button" class="btn-remover">${ic('lixeira')}<span>Remover</span></button>
       </div>
-      <label class="mini" for="${id}-nome">Nome completo <span class="obrig" aria-hidden="true">*</span></label>
-      <input type="text" id="${id}-nome" data-campo="nome" maxlength="80" autocapitalize="words" spellcheck="false" aria-describedby="${id}-e-nome">
+      <input type="text" id="${id}-nome" data-campo="nome" maxlength="80" autocapitalize="words" spellcheck="false" enterkeyhint="next" aria-describedby="${id}-e-nome">
       <p class="erro" id="${id}-e-nome" hidden></p>
       <div class="linha2">
         <fieldset data-campo="tipo" aria-describedby="${id}-e-tipo">
@@ -353,8 +445,8 @@
           <p class="erro" id="${id}-e-tipo" hidden></p>
         </fieldset>
         <div class="campo-idade" hidden>
-          <label class="mini" for="${id}-idade">Idade na festa${dataCurta() ? ` <small>(${dataCurta()})</small>` : ''} <span class="obrig" aria-hidden="true">*</span></label>
-          <input type="number" id="${id}-idade" data-campo="idade" min="0" max="17" step="1" inputmode="numeric" aria-describedby="${id}-e-idade">
+          <label for="${id}-idade" title="Idade na data da festa">Idade${dataCurta() ? ` <small>em ${dataCurta()}</small>` : ''} <span class="obrig" aria-hidden="true">*</span></label>
+          <input type="number" id="${id}-idade" data-campo="idade" min="0" max="17" step="1" inputmode="numeric" enterkeyhint="done" aria-describedby="${id}-e-idade">
           <p class="erro" id="${id}-e-idade" hidden></p>
         </div>
       </div>`;
@@ -577,6 +669,7 @@
 
     const r = montarResposta(d);
     estado.respostas.push(r);
+    estado.ultimaId = r.id;
     renderPainel();
     mostrarSucesso(r);
     toast('Resposta adicionada ao painel de demonstração.');
@@ -596,6 +689,9 @@
       $('#sucesso-lista').innerHTML = '';
     }
     $('#sucesso-lista').hidden = r.resposta !== 'sim';
+    $('#sucesso-proximo').textContent = r.resposta === 'sim'
+      ? 'Sua resposta já aparece, em destaque, no painel da equipe.'
+      : 'A ausência já aparece, em destaque, no painel da equipe.';
     form.hidden = true;
     sucesso.hidden = false;
     sucesso.focus({ preventScroll: true });
@@ -685,6 +781,18 @@
      ========================================================= */
   const valoresKpi = new Map();
 
+  // Três faixas EXCLUSIVAS definidas pelos limites de exemplo (isenção < lembrancinha).
+  // "Menores de isenção" = faixa 1; "menores de lembrancinha" = faixas 1 + 2 (sobrepostos).
+  function definirFaixas(R) {
+    const a = R.isencao;
+    const b = R.lembrancinha;
+    return [
+      { cls: 'f0', curto: a === 1 ? '0' : `0–${a - 1}`, rot: a === 1 ? 'Menos de 1 ano' : `0 a ${a - 1} anos`, cabe: (i) => i < a },
+      { cls: 'f1', curto: b - 1 === a ? `${a}` : `${a}–${b - 1}`, rot: b - 1 === a ? `${a} ${a === 1 ? 'ano' : 'anos'}` : `${a} a ${b - 1} anos`, cabe: (i) => i >= a && i < b },
+      { cls: 'f2', curto: `${b}+`, rot: `${b} anos ou mais`, cabe: (i) => i >= b }
+    ];
+  }
+
   function calcular() {
     const R = estado.regras;
     const confirmadas = estado.respostas.filter((r) => r.resposta === 'sim');
@@ -704,6 +812,7 @@
     });
     const criancas = pessoas.filter((p) => p.crianca);
     return {
+      faixas: definirFaixas(R).map((f) => ({ ...f, n: criancas.filter((p) => f.cabe(p.idade)).length })),
       confirmadas,
       ausencias,
       pessoas,
@@ -717,22 +826,27 @@
 
   function renderKpis(c) {
     const R = estado.regras;
-    const sobrepoe = R.isencao <= R.lembrancinha;
+    const F = c.faixas;
+    // `sec`: indicadores secundários, recolhidos no celular até tocar em "Mais indicadores".
     const kpis = [
-      { id: 'total', rot: 'Convidados confirmados', ic: 'pessoas', v: c.pessoas.length, det: `em ${plural(c.confirmadas.length, 'confirmação', 'confirmações')}`, cls: 'kpi-destaque' },
+      { id: 'total', rot: 'Confirmados', ic: 'pessoas', v: c.pessoas.length, det: `pessoas em ${plural(c.confirmadas.length, 'resposta', 'respostas')}`, cls: 'kpi-destaque' },
       { id: 'adultos', rot: 'Adultos', ic: 'pessoa', v: c.adultos.length, det: 'confirmados' },
-      { id: 'criancas', rot: 'Crianças', ic: 'estrela', v: c.criancas.length, det: 'confirmadas' },
-      { id: 'isentas', rot: `Menores de ${R.isencao} anos`, ic: 'coracao', v: c.isentas.length, det: 'isenção · regra de exemplo' },
-      { id: 'lembr', rot: `Menores de ${R.lembrancinha} anos`, ic: 'presente', v: c.lembr.length, det: `lembrancinha · regra de exemplo${sobrepoe ? ` · inclui as menores de ${R.isencao}` : ''}` },
-      { id: 'ausencias', rot: 'Informaram ausência', ic: 'ausente', v: c.ausencias.length, det: plural(c.ausencias.length, 'resposta', 'respostas') },
-      { id: 'pendentes', rot: 'Pendentes de conferência', ic: 'relogio', v: c.pendentes.length, det: 'confirmações a conferir', cls: 'kpi-pend' },
-      { id: 'respostas', rot: 'Respostas recebidas', ic: 'mensagem', v: estado.respostas.length, det: 'nesta simulação' }
+      { id: 'criancas', rot: 'Crianças', ic: 'estrela', v: c.criancas.length, det: F.map((f) => `${f.curto}: ${f.n}`).join(' · ') },
+      { id: 'isentas', rot: `Menores de ${R.isencao} anos`, ic: 'coracao', v: c.isentas.length, det: `isenção (exemplo) · faixa ${F[0].curto}`, sec: true },
+      { id: 'lembr', rot: `Menores de ${R.lembrancinha} anos`, ic: 'presente', v: c.lembr.length, det: `lembrancinha (exemplo) · inclui as menores de ${R.isencao}`, sec: true },
+      { id: 'ausencias', rot: 'Ausências', ic: 'ausente', v: c.ausencias.length, det: 'informadas', sec: true },
+      { id: 'pendentes', rot: 'A conferir', ic: 'relogio', v: c.pendentes.length, det: 'confirmações pendentes', cls: 'kpi-pend' },
+      { id: 'respostas', rot: 'Respostas', ic: 'mensagem', v: estado.respostas.length, det: 'nesta simulação', sec: true }
     ];
+    // Só registra como "visto" quando o painel está na tela, para o pulso
+    // acontecer quando a pessoa chega ao painel depois de enviar uma resposta.
+    const painelVisivel = !$('#tela-painel').hidden;
     $('#kpis').innerHTML = kpis.map((k) => {
-      const mudou = valoresKpi.has(k.id) && valoresKpi.get(k.id) !== k.v;
-      valoresKpi.set(k.id, k.v);
+      const antes = valoresKpi.has(k.id) ? valoresKpi.get(k.id) : 0;
+      const mudou = painelVisivel && antes !== k.v;
+      if (painelVisivel) valoresKpi.set(k.id, k.v);
       return `
-        <div class="kpi ${k.cls || ''} ${mudou ? 'pulso' : ''}" data-kpi="${k.id}">
+        <div class="kpi ${k.cls || ''} ${k.sec ? 'kpi-sec' : ''} ${mudou ? 'pulso' : ''}" data-kpi="${k.id}">
           <div class="kpi-rotulo">${ic(k.ic)}<span>${esc(k.rot)}</span></div>
           <div class="kpi-valor">${k.v}</div>
           <div class="kpi-detalhe">${esc(k.det)}</div>
@@ -742,39 +856,41 @@
 
   function renderFaixas(c) {
     const R = estado.regras;
+    const F = c.faixas;
     const total = c.criancas.length;
-    const alvo = $('#faixas');
-    if (!total) {
-      alvo.innerHTML = '<div class="faixas-vazia"></div><p class="nota-pequena">Nenhuma criança confirmada até agora.</p>';
-      $('#nota-sobreposicao').textContent = '';
-      return;
-    }
-    const lo = Math.min(R.isencao, R.lembrancinha);
-    const hi = Math.max(R.isencao, R.lembrancinha);
-    const conta = (f) => c.criancas.filter(f).length;
-    const bandas = [{ cls: 'f0', rot: lo === 1 ? 'Menos de 1 ano' : `0 a ${lo - 1} anos`, n: conta((p) => p.idade < lo) }];
-    if (hi > lo) bandas.push({ cls: 'f1', rot: hi - 1 === lo ? `${lo} anos` : `${lo} a ${hi - 1} anos`, n: conta((p) => p.idade >= lo && p.idade < hi) });
-    bandas.push({ cls: 'f2', rot: `${hi} anos ou mais`, n: conta((p) => p.idade >= hi) });
+    // Marcadores das faixas que cada indicador derivado inclui.
+    const inclui = (qtd) => F.map((f, i) => i < qtd
+      ? `<span class="marca-faixa inclui ${f.cls}">${ic('check')}${f.curto}</span>`
+      : `<span class="marca-faixa">${f.curto}</span>`).join('');
 
-    const chave = (n, texto) => n
-      ? `<span class="chave-item" style="width:${(n / total) * 100}%"><span class="chave-rotulo">${texto}</span></span>`
-      : `<span class="chave-rotulo chave-zero">${texto}</span>`;
-    const descricao = bandas.map((b) => `${b.rot}: ${b.n}`).join('; ');
-
-    alvo.innerHTML = `
-      <div class="faixas-graf" role="img" aria-label="${esc(`${plural(total, 'criança', 'crianças')} por faixa etária. ${descricao}.`)}">
-        <div class="chave chave-topo">${chave(c.isentas.length, `Menores de ${R.isencao}: <b>${c.isentas.length}</b> · isenção`)}</div>
-        <div class="faixas-barra">
-          ${bandas.filter((b) => b.n).map((b) => `<span class="faixa-seg ${b.cls}" style="flex-grow:${b.n}" title="${esc(`${b.rot}: ${plural(b.n, 'criança', 'crianças')}`)}"></span>`).join('')}
+    $('#faixas').innerHTML = `
+      <div class="faixas-exclusivas">
+        <p class="faixas-total">Total de crianças <b>${total}</b>${total ? `<span>= ${F.map((f) => f.n).join(' + ')}</span>` : ''}</p>
+        <div class="faixas-barra" role="img" aria-label="${esc(`${plural(total, 'criança', 'crianças')}: ${F.map((f) => `${f.rot}, ${f.n}`).join('; ')}`)}">
+          ${total
+            ? F.filter((f) => f.n).map((f) => `<span class="faixa-seg ${f.cls}" style="flex-grow:${f.n}" title="${esc(`${f.rot}: ${plural(f.n, 'criança', 'crianças')}`)}"></span>`).join('')
+            : '<span class="faixas-vazia"></span>'}
         </div>
-        <div class="chave chave-base">${chave(c.lembr.length, `Menores de ${R.lembrancinha}: <b>${c.lembr.length}</b> · lembrancinha`)}</div>
+        <ul class="faixas-lista">
+          ${F.map((f) => `<li data-faixa="${f.cls}"><i class="${f.cls}"></i><span>${f.rot}</span><b>${f.n}</b></li>`).join('')}
+        </ul>
+        <p class="faixas-legenda">Faixas exclusivas: cada criança aparece em uma só.</p>
       </div>
-      <ul class="legenda">
-        ${bandas.map((b) => `<li><i class="${b.cls}"></i>${esc(b.rot)}: <b>${b.n}</b></li>`).join('')}
-      </ul>`;
-    $('#nota-sobreposicao').textContent = R.isencao <= R.lembrancinha
-      ? `As faixas se sobrepõem: as crianças menores de ${R.isencao} anos também contam entre as menores de ${R.lembrancinha}.`
-      : `Com estas regras, as crianças menores de ${R.lembrancinha} anos também contam entre as menores de ${R.isencao}.`;
+
+      <div class="derivados">
+        <p class="derivados-titulo"><b>Indicadores derivados</b> <span>Se sobrepõem: não some um com o outro.</span></p>
+        <div class="derivado" data-derivado="isentas">
+          <div class="derivado-topo"><span>Menores de ${R.isencao} anos</span><b>${c.isentas.length}</b></div>
+          <div class="derivado-faixas" aria-hidden="true">${inclui(1)}</div>
+          <small>Isenção · regra de exemplo · faixa ${F[0].curto}</small>
+        </div>
+        <div class="derivado" data-derivado="lembr">
+          <div class="derivado-topo"><span>Menores de ${R.lembrancinha} anos</span><b>${c.lembr.length}</b></div>
+          <div class="derivado-faixas" aria-hidden="true">${inclui(2)}</div>
+          <small>Lembrancinha · regra de exemplo · faixas ${F[0].curto} e ${F[1].curto} (${F[0].n} + ${F[1].n})</small>
+        </div>
+        <p class="nota-pequena">Quem tem menos de ${R.isencao} anos também conta entre os menores de ${R.lembrancinha}.${total ? ` Por isso ${c.isentas.length} + ${c.lembr.length} não é o total de crianças (${total}).` : ''}</p>
+      </div>`;
   }
 
   function pilulaEstado(conferida) {
@@ -804,11 +920,12 @@
         p.lembr ? `<span class="etiqueta etiqueta-lembr">${ic('presente')} Lembrancinha</span>` : '',
         p.repetido ? `<span class="etiqueta etiqueta-alerta">${ic('info')} Nome repetido</span>` : ''
       ].join('');
-      return `<tr>
-        <td data-rotulo="Convidado">${esc(p.nome)}${p.ehResponsavel ? ' <span class="etiqueta">responsável</span>' : ''}</td>
+      const recente = p.resp.id === estado.ultimaId;
+      return `<tr${recente ? ' class="recente"' : ''}>
+        <td data-rotulo="Convidado">${esc(p.nome)}${p.ehResponsavel ? ' <span class="etiqueta etiqueta-resp">responsável</span>' : ''}${recente ? ' <span class="etiqueta etiqueta-nova">nova</span>' : ''}</td>
         <td data-rotulo="Perfil">${p.crianca ? `Criança · ${idadeTexto(p.idade)}` : 'Adulto'}</td>
-        <td data-rotulo="Observações"><div>${obs || '<span class="sem-obs">—</span>'}</div></td>
-        <td data-rotulo="Responsável">${esc(p.resp.responsavel)}</td>
+        <td data-rotulo="Observações"${obs ? '' : ' class="sem-observacao"'}><div>${obs || '<span class="sem-obs">—</span>'}</div></td>
+        <td data-rotulo="Responsável"${p.ehResponsavel ? ' class="eh-resp"' : ''}>${esc(p.resp.responsavel)}</td>
         <td data-rotulo="Conferência">${pilulaEstado(p.resp.conferida)}</td>
       </tr>`;
     }).join('');
@@ -822,8 +939,8 @@
     $('#lista-respostas').innerHTML = confirmadas.length ? confirmadas.map((r) => {
       const ad = r.convidados.filter((p) => p.tipo !== 'crianca').length;
       const cr = r.convidados.length - ad;
-      return `<li class="resposta">
-        <div class="resposta-topo"><b>${esc(r.responsavel)}</b>${pilulaEstado(r.conferida)}</div>
+      return `<li class="resposta${r.id === estado.ultimaId ? ' recente' : ''}">
+        <div class="resposta-topo"><b>${esc(r.responsavel)}${r.id === estado.ultimaId ? ' <span class="etiqueta etiqueta-nova">sua resposta</span>' : ''}</b>${pilulaEstado(r.conferida)}</div>
         <div class="resposta-meta">${plural(r.convidados.length, 'pessoa', 'pessoas')} (${plural(ad, 'adulto', 'adultos')}, ${plural(cr, 'criança', 'crianças')}) · ${hora(r.criadoEm)}${r.ficticia ? ' · fictícia' : ''}</div>
         ${r.recado ? `<p class="resposta-recado">“${esc(r.recado)}”</p>` : ''}
         <div class="resposta-acoes">
@@ -835,7 +952,7 @@
 
     const ausencias = ordenar(c.ausencias);
     $('#lista-ausencias').innerHTML = ausencias.length ? ausencias.map((r) => `
-      <li>
+      <li${r.id === estado.ultimaId ? ' class="recente"' : ''}>
         <div><b>${esc(r.responsavel)}</b><div class="resposta-meta">${hora(r.criadoEm)}${r.ficticia ? ' · fictícia' : ''}</div>
         ${r.recado ? `<p class="resposta-recado">“${esc(r.recado)}”</p>` : ''}</div>
         <button type="button" class="btn-mini" data-excluir="${r.id}" aria-label="Excluir resposta de ${esc(r.responsavel)}">${ic('lixeira')}<span class="sr-only">Excluir</span></button>
@@ -909,10 +1026,33 @@
     toast(`${EXEMPLOS_PAINEL.length} respostas fictícias adicionadas ao painel.`);
   }
 
+  // Celular: seções do painel em abas e indicadores secundários recolhidos.
+  function aplicarSecao() {
+    $('#painel-conteudo').dataset.secaoAtiva = estado.secao;
+    $$('#painel-abas button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.secao === estado.secao)));
+  }
+
+  function expandirKpis(abrir) {
+    const btn = $('#btn-kpis-mais');
+    $('#kpis').classList.toggle('expandido', abrir);
+    btn.setAttribute('aria-expanded', String(abrir));
+    $('span', btn).textContent = abrir ? 'Menos indicadores' : 'Mais indicadores';
+  }
+
   function ligarPainel() {
+    $('#painel-abas').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-secao]');
+      if (!b) return;
+      estado.secao = b.dataset.secao;
+      aplicarSecao();
+    });
+    $('#btn-kpis-mais').addEventListener('click', () => {
+      expandirKpis($('#btn-kpis-mais').getAttribute('aria-expanded') !== 'true');
+    });
     $('#btn-carregar-exemplos').addEventListener('click', carregarExemplos);
     $('#btn-limpar-respostas').addEventListener('click', () => {
       estado.respostas = [];
+    estado.ultimaId = null;
       estado.exemplosCarregados = false;
       valoresKpi.clear();
       renderPainel();
@@ -953,19 +1093,27 @@
     [['#regra-isencao', 'isencao'], ['#regra-lembrancinha', 'lembrancinha']].forEach(([sel, chave]) => {
       const inp = $(sel);
       inp.value = estado.regras[chave];
+      inp.setAttribute('aria-describedby', 'regra-erro');
       inp.addEventListener('input', () => {
         const v = inp.value.trim();
-        if (/^\d{1,2}$/.test(v) && Number(v) >= 1 && Number(v) <= 17) {
-          inp.removeAttribute('aria-invalid');
-          estado.regras[chave] = Number(v);
-          renderPainel();
-        } else {
-          inp.setAttribute('aria-invalid', 'true');
-        }
+        const n = Number(v);
+        const proposta = { ...estado.regras, [chave]: n };
+        let msg = '';
+        if (!/^\d{1,2}$/.test(v) || n < 1 || n > 17) msg = 'Use um número inteiro de 1 a 17.';
+        else if (proposta.isencao >= proposta.lembrancinha) msg = 'O limite da isenção precisa ser menor que o da lembrancinha.';
+        const erro = $('#regra-erro');
+        erro.textContent = msg;
+        erro.hidden = !msg;
+        if (msg) { inp.setAttribute('aria-invalid', 'true'); return; }
+        inp.removeAttribute('aria-invalid');
+        estado.regras[chave] = n;
+        renderPainel();
       });
+      // Ao sair do campo, um valor inválido volta ao último valor aceito.
       inp.addEventListener('blur', () => {
         inp.value = estado.regras[chave];
         inp.removeAttribute('aria-invalid');
+        $('#regra-erro').hidden = true;
       });
     });
   }
@@ -979,11 +1127,17 @@
     ligarNavegacao();
     ligarFormulario();
     ligarPainel();
+    ligarAparelho();
+    ligarExperimente();
     resetarFormulario();
     renderPainel();
 
-    $('#dlg-reiniciar').addEventListener('close', (e) => {
-      if (e.target.returnValue === 'ok') reiniciarTudo();
+    // Fecha o diálogo e reinicia no mesmo clique (o evento `close` é assíncrono).
+    $('#dlg-reiniciar form').addEventListener('submit', (e) => {
+      const confirmou = !!e.submitter && e.submitter.value === 'ok';
+      e.preventDefault();
+      $('#dlg-reiniciar').close(confirmou ? 'ok' : 'cancelar');
+      if (confirmou) reiniciarTudo();
     });
 
     const inicial = indiceDe(location.hash.slice(1));
