@@ -241,11 +241,14 @@
     if (location.hash !== hash) history.replaceState(null, '', hash);
 
     if (mudou) {
+      // Avisos temporários se referem à tela de origem; não devem cobrir a nova tela.
+      clearTimeout(toastTimer);
+      $('#toast').hidden = true;
       window.scrollTo(0, 0);
       anunciar(`Tela ${idx + 1} de ${telas.length}: ${tela.dataset.titulo}`);
       if (tela.dataset.tela === 'convite') {
         $('#aparelho-convite').scrollTop = 0;
-        $('#aparelho').classList.remove('rolou', 'no-fim');
+        $('#aparelho').classList.remove('no-fim');
         ajustarAparelho();
         acenarConfirmar();
       }
@@ -295,7 +298,6 @@
     const ap = $('#aparelho');
     const atualizarFim = () => {
       ap.classList.toggle('no-fim', tela.scrollTop + tela.clientHeight >= tela.scrollHeight - 8);
-      ap.classList.toggle('rolou', tela.scrollTop > 40);
     };
     tela.addEventListener('scroll', atualizarFim, { passive: true });
     let espera;
@@ -797,7 +799,9 @@
     const R = estado.regras;
     const confirmadas = estado.respostas.filter((r) => r.resposta === 'sim');
     const ausencias = estado.respostas.filter((r) => r.resposta === 'nao');
-    const pessoas = confirmadas.flatMap((r) => r.convidados.map((c) => ({ ...c, resp: r })));
+    // Mais recentes primeiro: a resposta que a pessoa acabou de enviar aparece no topo da lista.
+    const pessoas = confirmadas.slice().sort((x, y) => y.criadoEm - x.criadoEm)
+      .flatMap((r) => r.convidados.map((c) => ({ ...c, resp: r })));
 
     const contagem = new Map();
     pessoas.forEach((p) => {

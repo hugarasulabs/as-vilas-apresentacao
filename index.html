@@ -54,7 +54,7 @@
   <header class="topo">
     <div class="topo-marca">
       <img src="assets/marcas/grupo-as-vilas.jpg" alt="" width="36" height="36" data-cfg-src="grupo.imagemMarca">
-      <span><b>Grupo As Vilas</b><small>Proposta de experiência digital</small></span>
+      <span><b>Grupo As Vilas</b><small>Demonstração conceitual</small></span>
     </div>
     <nav class="progresso" aria-label="Telas da apresentação">
       <ol id="progresso-lista"></ol>
@@ -72,7 +72,7 @@
         <div class="abertura-texto">
           <p class="sobretitulo revela">Momentos que viram memórias</p>
           <h1 id="t1" class="revela" tabindex="-1">Uma ideia para que a festa <em>comece já no convite.</em></h1>
-          <p class="lead revela">Preparamos uma demonstração para conversar com o Grupo As Vilas sobre convites digitais interativos e confirmação de presença. Uma possibilidade para avaliarmos juntos.</p>
+          <p class="lead revela">Uma demonstração inspirada na experiência de organizar uma festa no Grupo As Vilas. Um ponto de partida para conversarmos sobre a experiência dos convidados, a organização dos eventos e outras oportunidades digitais.</p>
           <div class="acoes revela">
             <button type="button" class="btn btn-primario" data-ir="possibilidade">Começar a apresentação <svg class="ic" aria-hidden="true"><use href="#i-direita"/></svg></button>
             <button type="button" class="btn btn-secundario" data-ir="convite">Ir direto à demonstração</button>
@@ -210,7 +210,6 @@
                 </footer>
               </article>
             </div>
-            <span class="aparelho-rolar" aria-hidden="true">role o convite <svg class="ic"><use href="#i-baixo"/></svg></span>
           </div>
         </div>
 
@@ -242,7 +241,7 @@
         <div class="demo-intro">
           <p class="sobretitulo revela">Demonstração · confirmação de presença</p>
           <h2 id="t4" class="revela" tabindex="-1">Cada convidado, <em>pelo nome.</em></h2>
-          <p class="lead revela">Em vez de só “quantos adultos e quantas crianças”, a família informa quem vai e a idade de cada criança na data da festa.</p>
+          <p class="lead revela">Além de quantos adultos e crianças vão, a família pode informar quem são e a idade de cada criança na data da festa.</p>
         </div>
 
         <div class="demo-principal form-area revela">
@@ -340,7 +339,7 @@
         <div>
           <p class="sobretitulo revela">Demonstração · visão da equipe</p>
           <h2 id="t5" class="revela" tabindex="-1">Painel da festa <em>da Anne</em></h2>
-          <p class="lead revela">Reflete somente as respostas simuladas nesta aba do navegador. Nada fica gravado em servidor.</p>
+          <p class="lead revela">Uma ideia de como a equipe poderia acompanhar as confirmações, nome a nome. Aqui aparecem só as respostas simuladas nesta aba; nada é gravado.</p>
         </div>
         <div class="painel-ferramentas revela">
           <button type="button" class="btn btn-secundario btn-p" id="btn-carregar-exemplos"><svg class="ic" aria-hidden="true"><use href="#i-pessoas"/></svg> Respostas fictícias</button>
@@ -367,6 +366,20 @@
           <button type="button" data-secao="faixas" aria-pressed="false">Faixas e regras</button>
         </div>
 
+        <article class="bloco secao revela" data-secao="lista" aria-labelledby="titulo-lista">
+          <div class="bloco-cabeca">
+            <h3 id="titulo-lista">Lista nominal de confirmados</h3>
+            <div class="filtros" role="group" aria-label="Filtrar lista" id="filtros"></div>
+          </div>
+          <div class="tabela-rolavel">
+            <table class="tabela" id="tabela-convidados">
+              <thead><tr><th scope="col">Convidado</th><th scope="col">Perfil</th><th scope="col">Observações</th><th scope="col">Responsável</th><th scope="col">Conferência</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="nota-pequena" id="tabela-vazia" hidden>Nenhum convidado neste filtro.</p>
+        </article>
+
         <div class="painel-grade secao revela" data-secao="faixas">
           <article class="bloco" aria-labelledby="titulo-faixas">
             <h3 id="titulo-faixas">Crianças por faixa etária</h3>
@@ -388,26 +401,12 @@
           </article>
         </div>
 
-        <article class="bloco secao revela" data-secao="lista" aria-labelledby="titulo-lista">
-          <div class="bloco-cabeca">
-            <h3 id="titulo-lista">Lista nominal de confirmados</h3>
-            <div class="filtros" role="group" aria-label="Filtrar lista" id="filtros"></div>
-          </div>
-          <div class="tabela-rolavel">
-            <table class="tabela" id="tabela-convidados">
-              <thead><tr><th scope="col">Convidado</th><th scope="col">Perfil</th><th scope="col">Observações</th><th scope="col">Responsável</th><th scope="col">Conferência</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <p class="nota-pequena" id="tabela-vazia" hidden>Nenhum convidado neste filtro.</p>
-        </article>
-
         <div class="painel-grade secao revela" data-secao="conferencia">
           <article class="bloco" aria-labelledby="titulo-respostas">
             <div class="bloco-cabeca">
               <h3 id="titulo-respostas">Respostas para conferência</h3>
             </div>
-            <p class="nota-pequena">Na solução real, cada resposta seria conferida com a lista de convidados autorizados pela organização.</p>
+            <p class="nota-pequena">Em uso real, cada resposta seria conferida com a lista de convidados autorizados pela organização.</p>
             <ul class="respostas" id="lista-respostas"></ul>
           </article>
           <article class="bloco" aria-labelledby="titulo-ausencias">
@@ -421,23 +420,23 @@
     <!-- TELA 6 — CONVERSA COM A GESTÃO -->
     <section class="tela" id="tela-conversa" data-tela="conversa" data-titulo="Conversa" aria-labelledby="t6" hidden>
       <div class="conversa">
-        <p class="sobretitulo revela">Conversa com a gestão</p>
-        <h2 id="t6" class="revela" tabindex="-1">Esta é apenas uma possibilidade. <em>Queremos conhecer as ideias e prioridades do Grupo As Vilas.</em></h2>
-        <p class="lead revela">Nada do que vocês viram é uma decisão tomada. É um ponto de partida para ouvir a equipe e entender o que faria sentido para cada vila.</p>
+        <p class="sobretitulo revela">Próximo passo: uma conversa</p>
+        <h2 id="t6" class="revela" tabindex="-1">Esta é uma possibilidade que desenvolvemos para ilustrar ideias. <em>Queremos conhecer as necessidades reais de vocês.</em></h2>
+        <p class="lead revela">Antes de definir qualquer solução, queremos ouvir a gestão e a equipe e entender o que faz sentido para cada vila.</p>
 
         <div class="perguntas revela">
           <p class="perguntas-titulo">Algumas perguntas para começarmos</p>
           <ol>
-            <li>Como os convites em vídeo são produzidos e compartilhados hoje?</li>
-            <li>Quais informações a equipe mais precisa receber antes da festa?</li>
-            <li>Como é feita hoje a conferência da lista de convidados?</li>
+            <li>Como funcionam hoje os convites e a confirmação de presença?</li>
+            <li>Quais informações a equipe precisa receber antes de cada festa, e como elas chegam hoje?</li>
             <li>O que muda de uma vila para outra?</li>
+            <li>Além dos convites e da confirmação de presença, o que vocês gostariam de melhorar no site, no atendimento ou na gestão dos eventos?</li>
           </ol>
         </div>
 
         <div class="acoes revela">
           <button type="button" class="btn btn-primario" data-ir="convite">Rever a demonstração</button>
-          <button type="button" class="btn btn-secundario" data-acao="reiniciar"><svg class="ic" aria-hidden="true"><use href="#i-reiniciar"/></svg> Reiniciar demonstração</button>
+          <button type="button" class="btn btn-secundario" data-acao="reiniciar"><svg class="ic" aria-hidden="true"><use href="#i-reiniciar"/></svg> Limpar dados e recomeçar</button>
         </div>
 
         <div class="assinatura-final revela">
